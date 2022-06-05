@@ -97,12 +97,12 @@ def task83(verbose=False, write_file=True):
     e = 65537
     n = int("AF5466C26A6B662AC98C06023501C9DF6036B065BD1F6804B1FC86307718DA4048211FD68A06917DE6F81DC018DCAF84B38AB77A6538BA2FE6664D3FB81E4A0886BBCDAB071AD6823FE20DF1CD67D33FB6CC5DA519F69B11F3D48534074A83F03A5A9545427720A30A27432E94970155A026572E358072023061AF65A2A18E85", 16)
     print(f"{n=}\n{e=}\n")
-    encrypted_matrikelnr = rsa_oaep(hashlib.sha256, bytes(8424462), n, 8) # (!, not compliant with RFC8017, because seedlength is not the length of the hashfunction)
-    print(f"{encrypted_matrikelnr=}")
+    encrypted_matrikelnr = rsa_oaep(hash_func=hashlib.sha256, m=b"8424462", n=n, e=e, seedlen=8) # (!, not compliant with RFC8017, because seedlength is not the length of the hashfunction)
+    print(f"{encrypted_matrikelnr.hex()=}")
     # write to file
     if write_file:
-        with open("20220605_Übungsblatt8_Aufgabe3_encrypted_matrikelnr.txt", "wb") as f:
-            f.write(encrypted_matrikelnr)
+        with open("20220605_Übungsblatt8_Aufgabe3_encrypted_matrikelnr.txt", "w") as f:
+            f.write(encrypted_matrikelnr.hex())
             if verbose: print("sucessfully written to file")
 
 def test():
