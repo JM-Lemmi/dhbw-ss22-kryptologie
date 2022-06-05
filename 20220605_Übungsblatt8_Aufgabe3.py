@@ -80,10 +80,14 @@ def oaep(mgf_hashfunc, m: bytes, n: int, seedlen: int=None, seed: bytes=None, de
     if debug: print(f"{em.hex()=}")
     return em
 
-def rsa(hash_func, m: bytes, n: int, e: int, seedlen=None, seed=None):
-    em = oaep(hash_func, m, n, seedlen=seedlen, seed=seed)
-    d = pow(e, -1, n)
-    return pow(int(em), d, n)
+def rsa_oaep(hash_func, m: bytes, n: int, e: int, seedlen=None, seed=None, debug=False) -> bytes:
+    em = oaep(hash_func, m, n, seedlen=seedlen, seed=seed, debug=debug)
+    if debug: print(f"{em.hex()=}")
+    y: int; y = pow(int.from_bytes(em, byteorder='big'), e, n)
+    if debug: print(f"{y=}")
+    y_bytes= bytes.fromhex(hex(y)[2:])
+    if debug: print(f"{y_bytes.hex()=}")
+    return y_bytes #this fix is necessary to avoid int overflow?
 
 def task83(verbose=False, write_file=True):
     print("# Task 8.3)\n")
@@ -93,7 +97,7 @@ def task83(verbose=False, write_file=True):
     e = 65537
     n = int("AF5466C26A6B662AC98C06023501C9DF6036B065BD1F6804B1FC86307718DA4048211FD68A06917DE6F81DC018DCAF84B38AB77A6538BA2FE6664D3FB81E4A0886BBCDAB071AD6823FE20DF1CD67D33FB6CC5DA519F69B11F3D48534074A83F03A5A9545427720A30A27432E94970155A026572E358072023061AF65A2A18E85", 16)
     print(f"{n=}\n{e=}\n")
-    encrypted_matrikelnr = rsa(hashlib.sha256, bytes(8424462), n, 8) # (!, not compliant with RFC8017, because seedlength is not the length of the hashfunction)
+    encrypted_matrikelnr = rsa_oaep(hashlib.sha256, bytes(8424462), n, 8) # (!, not compliant with RFC8017, because seedlength is not the length of the hashfunction)
     print(f"{encrypted_matrikelnr=}")
     # write to file
     if write_file:
@@ -110,7 +114,7 @@ def test():
     assert oaep(hashlib.sha256, m=bytes.fromhex("466f6f62617220313233343536373839"), n=n, seedlen=8, seed=bytes.fromhex("aa1122fe0815beef"), debug=True) == bytes.fromhex("00db2040f6425bb082ea600669f6f16b3a2ad05d4b6d9b23911c8cc432fddd8d34a68d88af3d787b7eebf6cd1b720812086758ce56e24ab819ccd8fb5eedb1cae9f6f895667d7f89d0454b828777ecabc040a649c8956e78ec1c721370663065cbc343deabad9eb6f2aceab6bfed5bea6543aa3672cddf915c5b564848f4e6ec")
     print("oaep test passed")
 
-    assert rsa(hashlib.sha256, m=bytes.fromhex("466f6f62617220313233343536373839"), n=n, e=e, seedlen=8, seed=bytes.fromhex("aa1122fe0815beef")) == bytes.fromhex("1b57819fa11340ac8b1843c87db7adb126daa8b6dde1feefd7af721cee8f46b6e2c361fc04ac055406a342187388b019dba0bc3f6503f267b848f7cc86b29a3d0b32730ccf04c5a8a3e1255708cbc6a6a648015e30f38b1c1c7aa9d2b0e67a775c7ad1cb72ff76c000af46e7cada3c3b45b5f4d1ec8e0596928cc9b46ee2b53d")
+    assert rsa_oaep(hashlib.sha256, m=bytes.fromhex("466f6f62617220313233343536373839"), n=n, e=e, seedlen=8, seed=bytes.fromhex("aa1122fe0815beef"), debug=True) == bytes.fromhex("1b57819fa11340ac8b1843c87db7adb126daa8b6dde1feefd7af721cee8f46b6e2c361fc04ac055406a342187388b019dba0bc3f6503f267b848f7cc86b29a3d0b32730ccf04c5a8a3e1255708cbc6a6a648015e30f38b1c1c7aa9d2b0e67a775c7ad1cb72ff76c000af46e7cada3c3b45b5f4d1ec8e0596928cc9b46ee2b53d")
 
     print("tests passed")
 
