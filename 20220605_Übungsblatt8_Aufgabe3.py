@@ -11,6 +11,21 @@ def bytes_xor(a: bytes, b: bytes) -> bytes:
     result_int = int.from_bytes(a, byteorder="big") ^ int.from_bytes(b, byteorder="big")
     return result_int.to_bytes(max(len(a), len(b)), byteorder="big")
 
+def bytes_from_int(i: int, len: int=None) -> bytes:
+    """
+    Convert an integer to a byte string.
+
+    Fixes overflow issues with builtin function bytes().
+    """
+    a = hex(i)[2:]
+    if len(a) % 2 == 1:
+        a = "0" + a
+    if len is not None:
+        while len(a) < len:
+            a = "00" + a
+    b = bytes.fromhex(a)
+    return b
+
 # from https://en.wikipedia.org/wiki/Mask_generation_function#Example_code, danke Frederik ;)
 def mgf1(seed: bytes, length: int, hash_func=hashlib.sha1) -> bytes:
     hLen = hash_func().digest_size
@@ -80,6 +95,57 @@ def oaep(mgf_hashfunc, m: bytes, n: int, seedlen: int=None, seed: bytes=None, de
     if debug: print(f"{em.hex()=}")
     return em
 
+def rev_oaep(mgf_hashfunc, cm: bytes, d: int, n: int, debug=False) -> bytes:
+    """Decrypting OAEP
+
+    Throws an error if the padding is not done correctly.
+
+    Arguments:
+        mgf_hashfunc {hashlib.func} -- mask generation function
+        cm {bytes} -- encrypted message
+        d {int} -- private key
+        n {int} -- modulus
+        debug {bool} -- print debug messages
+    
+    Returns:
+        bytes -- decrypted message
+    """
+
+    # Decrypt message with rsa
+    em_int = rsa(int.from_bytes(cm, byteorder="big"), d, n)
+    em = bytes_from_int(em_int)
+    if debug: print(f"{em.hex()=}, {len(em)=}")
+
+    # Check if first byte of em is 0x00
+    if em[:1] != 0: raise ValueError("First byte of em is not 0x00")
+    # Split the message into seed and db
+    maskedseedlen = mgf_hashfunc().digest_size
+    maskedseed = em[1:1+maskedseedlen]
+    maskeddb = em[1+maskedseedlen:]
+    if debug: print(f"{maskedseed.hex()=}, {maskeddb.hex()=}")
+    # generate the seed from the masked seed and masked DB
+    seed = mgf1(maskeddb, maskedseedlen, mgf_hashfunc) ^ maskedseed
+    if debug: print(f"{seed.hex()=}")
+    # generate the DB from the seed and masked DB
+    db = mgf1(seed, len(maskeddb), mgf_hashfunc) ^ maskeddb
+    if debug: print(f"{db.hex()=}")
+
+    # split db into its components
+    #hash
+    hlen = mgf_hashfunc().digest_size
+    lhash = db[:hlen]
+    #padding
+    i = hlen
+    while db[i:i+1] == 0: i += 1
+    pslen = i - hlen
+    if db[pslen+1] != 1: raise ValueError("DB is not padded correctly")
+    #message
+    m = db[pslen+2:]
+
+    # check if hash of message is correct
+    if lhash != mgf_hashfunc(m).digest(): raise ValueError("Hash of message is not correct")
+    return m
+
 def rsa_oaep(hash_func, m: bytes, n: int, e: int, seedlen=None, seed=None, debug=False) -> bytes:
     em = oaep(hash_func, m, n, seedlen=seedlen, seed=seed, debug=debug)
     if debug: print(f"{em.hex()=}")
@@ -88,6 +154,20 @@ def rsa_oaep(hash_func, m: bytes, n: int, e: int, seedlen=None, seed=None, debug
     y_bytes= bytes.fromhex(hex(y)[2:])
     if debug: print(f"{y_bytes.hex()=}")
     return y_bytes #this fix is necessary to avoid int overflow?
+
+def rsa(m: int, e: int, n: int) -> int:
+    """
+    RSA encryption
+
+    Arguments:
+        m {int} -- message to be encrypted
+        e {int} -- public exponent or private key for decryption
+        n {int} -- modulus
+    
+    Returns:
+        int -- encrypted message
+    """
+    return pow(m, e, n)
 
 def task83(verbose=False, write_file=True):
     print("# Task 8.3)\n")
